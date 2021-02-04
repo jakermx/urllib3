@@ -71,6 +71,77 @@ class HTTPConnection(_HTTPConnection):
          HTTPConnection.default_socket_options + [
              (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1),
          ]
+         
+         Using this will tell the OS TCP/IP Stack that need to handle the TCP Keep 
+         Alive Flow Control, but be dont spec that it will solve your ReadTimeOut 
+          or your ConnectionReset issues....because, some OS have its usage
+          parameters very unreachable, Linux by Default, when enabled, will start to 
+          sned TCP KA Packets after 2 hours without any activity...so obviously, sending  
+          anything even a KA Packet will Rise an Error.
+          
+          When a this Lib User uses this with a Connection : Keep Alive...the client 
+          should handle the flow control, until the server closes the connection or when 
+          the user dont care. But HTTP 1.1 have a lot of Paradoxes, so .... as a Family
+          If you uses it....you control it :D
+          
+          Setting the parameters as humans....in Linux 
+          
+            import socket
+            from urllib3.connection import HTTPConnection
+            HTTPConnection.default_socket_options = HTTPConnection.default_socket_options + [
+                (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                ,(socket.SOL_TCP, socket.TCP_KEEPIDLE, 45)
+                ,(socket.SOL_TCP, socket.TCP_KEEPINTVL, 10)
+                ,(socket.SOL_TCP, socket.TCP_KEEPCNT, 6)
+                 ]
+            now you can call the Library as you want...cause this applies to OS Wide, if you
+            dont want to be so rude...
+            
+            import requests
+            import socket
+            from requests.adapters import HTTPAdapter
+            from requests.adapters import PoolManager
+            from requests.packages.urllib3.connection import HTTPConnection
+
+
+            #This class will override the  request class
+            class SockOpsAdapter(HTTPAdapter):
+            def init(self, options, **kwargs):
+            self.options = options
+            super(SockOpsAdapter, self).init()
+
+            def init_poolmanager(self, connections, maxsize, block=False):
+            print "init_poolmanager"
+            self.poolmanager = PoolManager(num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            socket_options=self.options)
+                
+                
+                
+                
+            #Then Consume it and set the parameter as you need...
+            
+            
+            import requests
+            from requests.packages.urllib3.connection import HTTPConnection
+
+            optioens = HTTPConnection.default_socket_options = HTTPConnection.default_socket_options + [
+                (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1) #This used to be Disabled
+                ,(socket.SOL_TCP, socket.TCP_KEEPIDLE, 45)  #This is set in 7200 By Default
+                ,(socket.SOL_TCP, socket.TCP_KEEPINTVL, 10)  #This is the new "Ping" time
+                ,(socket.SOL_TCP, socket.TCP_KEEPCNT, 6)    #This is the max "Ping" attemps before closing the VC
+                 ]
+
+            s = requests.Session()
+            
+            
+            s.mount('http://', SockOpsAdapter(options))
+            s.mount('https://', SockOpsAdapter(options))
+
+            -----Enjoy it!
+
+
 
       Or you may want to disable the defaults by passing an empty list (e.g., ``[]``).
     """
